@@ -15,7 +15,6 @@ import {
   Calendar,
   CheckCircle,
   FileImage,
-  FilePdf,
   Upload,
   Crown
 } from 'lucide-react';
@@ -184,7 +183,7 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center space-x-3 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                     <div className="bg-red-600/20 rounded-full p-3">
-                      <FilePdf className="h-6 w-6 text-red-400" />
+                      <FileText className="h-6 w-6 text-red-400" />
                     </div>
                     <div>
                       <h4 className="text-white font-medium">PDF Upload</h4>
