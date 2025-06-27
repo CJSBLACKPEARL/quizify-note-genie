@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import Quiz from './Quiz';
 import { 
   BookOpen, 
   TrendingUp, 
@@ -24,9 +26,17 @@ interface DashboardProps {
   currentPlan: string;
 }
 
+interface Question {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+}
+
 const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
   const [notes, setNotes] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentQuiz, setCurrentQuiz] = useState<{ title: string; questions: Question[] } | null>(null);
 
   // Mock data for demonstration
   const stats = {
@@ -52,6 +62,47 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
     }
   };
 
+  const generateSampleQuiz = (topic: string): Question[] => {
+    // Generate sample questions based on the topic
+    const sampleQuestions: Question[] = [
+      {
+        id: 1,
+        question: `What is the main concept discussed in your notes about ${topic}?`,
+        options: [
+          'Basic definitions and terminology',
+          'Advanced applications only',
+          'Historical background only',
+          'Mathematical formulas only'
+        ],
+        correctAnswer: 0
+      },
+      {
+        id: 2,
+        question: `Which aspect of ${topic} requires the most attention according to your notes?`,
+        options: [
+          'Memorization of facts',
+          'Understanding core principles',
+          'Practice problems',
+          'Real-world applications'
+        ],
+        correctAnswer: 1
+      },
+      {
+        id: 3,
+        question: `How would you apply the concepts from your ${topic} notes?`,
+        options: [
+          'Only in academic settings',
+          'In practical, real-world scenarios',
+          'Only in theoretical discussions',
+          'Just for exam preparation'
+        ],
+        correctAnswer: 1
+      }
+    ];
+    
+    return sampleQuestions;
+  };
+
   const handleGenerateQuiz = async () => {
     if (!notes.trim()) return;
     
@@ -64,16 +115,44 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
     }
 
     setIsGenerating(true);
+    
     // Simulate API call
     setTimeout(() => {
+      const topic = notes.split(' ').slice(0, 3).join(' ') || 'Your Study Material';
+      const questions = generateSampleQuiz(topic);
+      
+      setCurrentQuiz({
+        title: `Quiz: ${topic}`,
+        questions
+      });
+      
       setIsGenerating(false);
-      alert('Quiz generated successfully! (This is a demo)');
       setNotes('');
     }, 2000);
   };
 
+  const handleQuizComplete = (score: number) => {
+    console.log(`Quiz completed with score: ${score}%`);
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentQuiz(null);
+  };
+
   const currentWordCount = notes.trim().split(/\s+/).filter(word => word.length > 0).length;
   const wordLimit = getWordLimit();
+
+  // If there's a current quiz, show the quiz component
+  if (currentQuiz) {
+    return (
+      <Quiz
+        title={currentQuiz.title}
+        questions={currentQuiz.questions}
+        onComplete={handleQuizComplete}
+        onBack={handleBackToDashboard}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
