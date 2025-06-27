@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,11 @@ import {
   FileText,
   Award,
   Calendar,
-  CheckCircle
+  CheckCircle,
+  FileImage,
+  FilePdf,
+  Upload,
+  Crown
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -130,7 +133,7 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Quiz Generator */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center">
@@ -163,6 +166,54 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                 >
                   {isGenerating ? 'Generating Quiz...' : 'Generate Quiz'}
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Coming Soon Section */}
+            <Card className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border-yellow-700/50">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Crown className="mr-2 h-5 w-5 text-yellow-500" />
+                  Coming Soon - Premium Features
+                </CardTitle>
+                <CardDescription className="text-gray-300">
+                  Advanced upload options for Premium subscribers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-3 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <div className="bg-red-600/20 rounded-full p-3">
+                      <FilePdf className="h-6 w-6 text-red-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-medium">PDF Upload</h4>
+                      <p className="text-sm text-gray-400">Upload PDF documents and convert them to quizzes</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <div className="bg-blue-600/20 rounded-full p-3">
+                      <FileImage className="h-6 w-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-medium">Photo Upload</h4>
+                      <p className="text-sm text-gray-400">Upload photos of handwritten notes for quiz generation</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 rounded-lg border border-yellow-600/30">
+                  <div className="flex items-center space-x-3">
+                    <Upload className="h-5 w-5 text-yellow-400" />
+                    <span className="text-white font-medium">Available with Premium Plan</span>
+                  </div>
+                  {currentPlan !== 'premium' && (
+                    <Badge className="bg-yellow-600 text-white">
+                      Upgrade Required
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
