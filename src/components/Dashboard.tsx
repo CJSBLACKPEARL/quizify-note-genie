@@ -1,10 +1,13 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import Quiz from './Quiz';
 import { 
   BookOpen, 
@@ -14,11 +17,11 @@ import {
   Plus, 
   FileText,
   Award,
-  Calendar,
   CheckCircle,
   FileImage,
   Upload,
-  Crown
+  Crown,
+  Loader2
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -35,23 +38,44 @@ interface Question {
 
 const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
   const [notes, setNotes] = useState('');
+  const [quizTitle, setQuizTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<{ title: string; questions: Question[] } | null>(null);
+  const [userProgress, setUserProgress] = useState<any>(null);
+  const [recentQuizzes, setRecentQuizzes] = useState<any[]>([]);
+  const { toast } = useToast();
 
-  // Mock data for demonstration
-  const stats = {
-    totalQuizzes: 15,
-    averageScore: 78,
-    studyStreak: 7,
-    totalStudyTime: 45
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Load user progress
+      const { data: progress } = await supabase
+        .from('user_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      setUserProgress(progress);
+
+      // Load recent quizzes
+      const { data: quizzes } = await supabase
+        .from('quizzes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      setRecentQuizzes(quizzes || []);
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
   };
-
-  const recentQuizzes = [
-    { id: 1, title: 'Biology Chapter 5', score: 85, date: '2 hours ago', questions: 10 },
-    { id: 2, title: 'Physics Laws', score: 72, date: '1 day ago', questions: 8 },
-    { id: 3, title: 'Chemistry Basics', score: 90, date: '2 days ago', questions: 12 },
-    { id: 4, title: 'Math Derivatives', score: 68, date: '3 days ago', questions: 15 }
-  ];
 
   const getWordLimit = () => {
     switch (currentPlan) {
@@ -62,81 +86,124 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
     }
   };
 
-  const generateSampleQuiz = (topic: string): Question[] => {
-    // Generate sample questions based on the topic
-    const sampleQuestions: Question[] = [
-      {
-        id: 1,
-        question: `What is the main concept discussed in your notes about ${topic}?`,
-        options: [
-          'Basic definitions and terminology',
-          'Advanced applications only',
-          'Historical background only',
-          'Mathematical formulas only'
-        ],
-        correctAnswer: 0
-      },
-      {
-        id: 2,
-        question: `Which aspect of ${topic} requires the most attention according to your notes?`,
-        options: [
-          'Memorization of facts',
-          'Understanding core principles',
-          'Practice problems',
-          'Real-world applications'
-        ],
-        correctAnswer: 1
-      },
-      {
-        id: 3,
-        question: `How would you apply the concepts from your ${topic} notes?`,
-        options: [
-          'Only in academic settings',
-          'In practical, real-world scenarios',
-          'Only in theoretical discussions',
-          'Just for exam preparation'
-        ],
-        correctAnswer: 1
-      }
-    ];
-    
-    return sampleQuestions;
-  };
-
   const handleGenerateQuiz = async () => {
-    if (!notes.trim()) return;
-    
+    if (!notes.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter some notes first!",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const wordCount = notes.trim().split(/\s+/).length;
     const limit = getWordLimit();
     
     if (limit !== Infinity && wordCount > limit) {
-      alert(`Your text has ${wordCount} words, but your ${currentPlan} plan allows only ${limit} words.`);
+      toast({
+        title: "Word Limit Exceeded",
+        description: `Your text has ${wordCount} words, but your ${currentPlan} plan allows only ${limit} words.`,
+        variant: "destructive"
+      });
       return;
     }
 
     setIsGenerating(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      const topic = notes.split(' ').slice(0, 3).join(' ') || 'Your Study Material';
-      const questions = generateSampleQuiz(topic);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
       
+      const { data, error } = await supabase.functions.invoke('generate-quiz', {
+        body: { 
+          notes: notes.trim(),
+          title: quizTitle.trim() || 'Generated Quiz'
+        }
+      });
+
+      if (error) throw error;
+
       setCurrentQuiz({
-        title: `Quiz: ${topic}`,
-        questions
+        title: data.title,
+        questions: data.questions
       });
       
+      toast({
+        title: "Success",
+        description: "Quiz generated successfully!",
+      });
+      
+    } catch (error) {
+      console.error('Error generating quiz:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate quiz. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
       setIsGenerating(false);
-      setNotes('');
-    }, 2000);
+    }
   };
 
-  const handleQuizComplete = (score: number) => {
-    console.log(`Quiz completed with score: ${score}%`);
+  const handleQuizComplete = async (score: number) => {
+    console.log('Quiz completed with score:', score);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update the quiz with the score
+      if (currentQuiz) {
+        const { error: updateError } = await supabase
+          .from('quizzes')
+          .update({ 
+            score,
+            completed_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id)
+          .eq('title', currentQuiz.title)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (updateError) {
+          console.error('Error updating quiz score:', updateError);
+        }
+      }
+
+      // Update user progress
+      const totalQuizzes = (userProgress?.total_quizzes || 0) + 1;
+      const currentAvg = userProgress?.average_score || 0;
+      const newAverage = ((currentAvg * (totalQuizzes - 1)) + score) / totalQuizzes;
+
+      const { error: progressError } = await supabase
+        .from('user_progress')
+        .upsert({
+          user_id: user.id,
+          total_quizzes: totalQuizzes,
+          average_score: newAverage,
+          last_active: new Date().toISOString()
+        });
+
+      if (progressError) {
+        console.error('Error updating progress:', progressError);
+      } else {
+        // Reload user data
+        loadUserData();
+      }
+
+      toast({
+        title: "Progress Saved",
+        description: `Quiz completed with ${score}% score!`,
+      });
+      
+    } catch (error) {
+      console.error('Error saving quiz results:', error);
+    }
   };
 
   const handleBackToDashboard = () => {
     setCurrentQuiz(null);
+    setNotes('');
+    setQuizTitle('');
   };
 
   const currentWordCount = notes.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -173,7 +240,7 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
               <BookOpen className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.totalQuizzes}</div>
+              <div className="text-2xl font-bold text-white">{userProgress?.total_quizzes || 0}</div>
             </CardContent>
           </Card>
 
@@ -183,28 +250,35 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
               <Target className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.averageScore}%</div>
-              <Progress value={stats.averageScore} className="mt-2" />
+              <div className="text-2xl font-bold text-white">
+                {userProgress?.average_score ? Math.round(userProgress.average_score) : 0}%
+              </div>
+              <Progress value={userProgress?.average_score || 0} className="mt-2" />
             </CardContent>
           </Card>
 
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Study Streak</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-400">Recent Activity</CardTitle>
               <Award className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.studyStreak} days</div>
+              <div className="text-2xl font-bold text-white">
+                {userProgress?.last_active 
+                  ? new Date(userProgress.last_active).toLocaleDateString()
+                  : 'Never'
+                }
+              </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Study Time</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-400">Plan Status</CardTitle>
               <Clock className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.totalStudyTime}h</div>
+              <div className="text-2xl font-bold text-white">{currentPlan.toUpperCase()}</div>
             </CardContent>
           </Card>
         </div>
@@ -219,7 +293,7 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                   Generate New Quiz
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Paste your notes below and we'll create a personalized quiz for you
+                  Enter your notes below and we'll create a personalized quiz using AI
                 </CardDescription>
                 <div className="flex items-center justify-between">
                   <Badge variant="secondary" className="bg-purple-600 text-white">
@@ -231,18 +305,42 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Textarea
-                  placeholder="Paste your notes here... The AI will analyze your content and generate relevant quiz questions."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-[200px] bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="quiz-title" className="text-white">Quiz Title (optional)</Label>
+                  <Input
+                    id="quiz-title"
+                    placeholder="Enter quiz title..."
+                    value={quizTitle}
+                    onChange={(e) => setQuizTitle(e.target.value)}
+                    className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes" className="text-white">Notes Content</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Paste your notes here... The AI will analyze your content and generate relevant quiz questions."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-[200px] bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                  />
+                </div>
                 <Button 
                   onClick={handleGenerateQuiz}
                   disabled={!notes.trim() || isGenerating}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {isGenerating ? 'Generating Quiz...' : 'Generate Quiz'}
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Quiz...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Generate Quiz
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </Card>
@@ -309,27 +407,37 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {recentQuizzes.map((quiz) => (
-                  <div key={quiz.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="text-white font-medium text-sm">{quiz.title}</h4>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-xs text-gray-400">{quiz.questions} questions</span>
-                        <span className="text-xs text-gray-400">•</span>
-                        <span className="text-xs text-gray-400">{quiz.date}</span>
+                {recentQuizzes.length > 0 ? (
+                  recentQuizzes.map((quiz) => (
+                    <div key={quiz.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="text-white font-medium text-sm">{quiz.title}</h4>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-xs text-gray-400">{quiz.total_questions} questions</span>
+                          <span className="text-xs text-gray-400">•</span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(quiz.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-sm font-semibold ${
+                          quiz.score >= 80 ? 'text-green-400' : 
+                          quiz.score >= 60 ? 'text-yellow-400' : 'text-red-400'
+                        }`}>
+                          {quiz.score ? `${quiz.score}%` : 'Not completed'}
+                        </div>
+                        {quiz.score >= 80 && <CheckCircle className="h-4 w-4 text-green-400 mt-1" />}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-semibold ${
-                        quiz.score >= 80 ? 'text-green-400' : 
-                        quiz.score >= 60 ? 'text-yellow-400' : 'text-red-400'
-                      }`}>
-                        {quiz.score}%
-                      </div>
-                      {quiz.score >= 80 && <CheckCircle className="h-4 w-4 text-green-400 mt-1" />}
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No quizzes yet</p>
+                    <p className="text-sm">Create your first quiz to get started!</p>
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
           </div>
