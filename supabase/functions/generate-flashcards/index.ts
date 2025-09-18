@@ -7,11 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface QuizQuestion {
+interface Flashcard {
   id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
+  front: string;
+  back: string;
+  category: string;
 }
 
 serve(async (req) => {
@@ -37,30 +37,31 @@ serve(async (req) => {
       );
     }
 
-    // Generate quiz using OpenAI
-    const prompt = `Based on the following notes, create a quiz with exactly 15 multiple-choice questions. Each question should have 4 options (A, B, C, D) with only one correct answer.
+    // Generate flashcards using OpenAI
+    const prompt = `Based on the following notes, create flashcards for the most important concepts, terms, definitions, and key points. Generate at least 10-15 flashcards.
 
 Notes:
 ${notes}
 
 Please respond with a JSON object in this exact format:
 {
-  "questions": [
+  "flashcards": [
     {
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0
+      "front": "Term or concept or question",
+      "back": "Definition, explanation, or answer",
+      "category": "Category name (e.g., 'Definitions', 'Concepts', 'Facts', 'Processes')"
     }
   ]
 }
 
 Make sure:
-- Questions test understanding of key concepts from the notes
-- Options are plausible but only one is clearly correct
-- correctAnswer is the index (0-3) of the correct option
-- Questions are clear and concise`;
+- Front side contains key terms, concepts, or questions
+- Back side contains clear definitions, explanations, or answers
+- Categories help organize the flashcards by topic
+- Focus on the most important and testable information
+- Include various types: definitions, explanations, examples, and key facts`;
 
-    console.log('Generating quiz for notes:', notes.substring(0, 100) + '...');
+    console.log('Generating flashcards for notes:', notes.substring(0, 100) + '...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -71,11 +72,11 @@ Make sure:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant that creates educational quizzes. Always respond with valid JSON.' },
+          { role: 'system', content: 'You are a helpful assistant that creates educational flashcards. Always respond with valid JSON. Focus on extracting the most important and memorable concepts.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.7,
-        max_tokens: 2000,
+        max_tokens: 3000,
       }),
     });
 
@@ -90,27 +91,27 @@ Make sure:
     console.log('Generated content:', generatedContent);
 
     // Parse the JSON response
-    let quizData;
+    let flashcardData;
     try {
-      quizData = JSON.parse(generatedContent);
+      flashcardData = JSON.parse(generatedContent);
     } catch (parseError) {
       console.error('Failed to parse OpenAI response:', parseError);
-      throw new Error('Failed to parse quiz data from AI response');
+      throw new Error('Failed to parse flashcard data from AI response');
     }
 
-    if (!quizData.questions || !Array.isArray(quizData.questions)) {
-      throw new Error('Invalid quiz format received from AI');
+    if (!flashcardData.flashcards || !Array.isArray(flashcardData.flashcards)) {
+      throw new Error('Invalid flashcard format received from AI');
     }
 
-    // Validate and format questions
-    const questions: QuizQuestion[] = quizData.questions.map((q: any, index: number) => ({
+    // Validate and format flashcards
+    const flashcards: Flashcard[] = flashcardData.flashcards.map((card: any, index: number) => ({
       id: index + 1,
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correctAnswer
+      front: card.front,
+      back: card.back,
+      category: card.category || 'General'
     }));
 
-    // Save quiz to database if user is authenticated
+    // Save flashcards to database if user is authenticated
     const authHeader = req.headers.get('Authorization');
     if (authHeader) {
       try {
@@ -124,19 +125,19 @@ Make sure:
         
         if (user) {
           const { error: insertError } = await supabase
-            .from('quizzes')
+            .from('flashcards')
             .insert({
               user_id: user.id,
-              title: title || 'Generated Quiz',
+              title: title || 'Generated Flashcards',
               notes_content: notes,
-              questions: questions,
-              total_questions: questions.length
+              flashcard_data: flashcards,
+              total_cards: flashcards.length
             });
 
           if (insertError) {
-            console.error('Error saving quiz:', insertError);
+            console.error('Error saving flashcards:', insertError);
           } else {
-            console.log('Quiz saved successfully');
+            console.log('Flashcards saved successfully');
           }
         }
       } catch (dbError) {
@@ -147,14 +148,14 @@ Make sure:
 
     return new Response(
       JSON.stringify({ 
-        questions,
-        title: title || 'Generated Quiz'
+        flashcards,
+        title: title || 'Generated Flashcards'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in generate-quiz function:', error);
+    console.error('Error in generate-flashcards function:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import Quiz from './Quiz';
+import Flashcards from './Flashcards';
 import { 
   BookOpen, 
   TrendingUp, 
@@ -36,11 +37,20 @@ interface Question {
   correctAnswer: number;
 }
 
+interface Flashcard {
+  id: number;
+  front: string;
+  back: string;
+  category: string;
+}
+
 const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
   const [notes, setNotes] = useState('');
   const [quizTitle, setQuizTitle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState<{ title: string; questions: Question[] } | null>(null);
+  const [currentFlashcards, setCurrentFlashcards] = useState<{ title: string; flashcards: Flashcard[] } | null>(null);
   const [userProgress, setUserProgress] = useState<any>(null);
   const [recentQuizzes, setRecentQuizzes] = useState<any[]>([]);
   const { toast } = useToast();
@@ -144,6 +154,63 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
     }
   };
 
+  const handleGenerateFlashcards = async () => {
+    if (!notes.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter some notes first!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const wordCount = notes.trim().split(/\s+/).length;
+    const limit = getWordLimit();
+    
+    if (limit !== Infinity && wordCount > limit) {
+      toast({
+        title: "Word Limit Exceeded",
+        description: `Your text has ${wordCount} words, but your ${currentPlan} plan allows only ${limit} words.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGeneratingFlashcards(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase.functions.invoke('generate-flashcards', {
+        body: { 
+          notes: notes.trim(),
+          title: quizTitle.trim() || 'Generated Flashcards'
+        }
+      });
+
+      if (error) throw error;
+
+      setCurrentFlashcards({
+        title: data.title,
+        flashcards: data.flashcards
+      });
+      
+      toast({
+        title: "Success",
+        description: `Generated ${data.flashcards.length} flashcards!`
+      });
+    } catch (error) {
+      console.error('Error generating flashcards:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate flashcards. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
+
   const handleQuizComplete = async (score: number) => {
     console.log('Quiz completed with score:', score);
     
@@ -202,6 +269,7 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
 
   const handleBackToDashboard = () => {
     setCurrentQuiz(null);
+    setCurrentFlashcards(null);
     setNotes('');
     setQuizTitle('');
   };
@@ -217,6 +285,17 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
         questions={currentQuiz.questions}
         onComplete={handleQuizComplete}
         onBack={handleBackToDashboard}
+      />
+    );
+  }
+
+  // If there are current flashcards, show the flashcards component
+  if (currentFlashcards) {
+    return (
+      <Flashcards
+        title={currentFlashcards.title}
+        flashcards={currentFlashcards.flashcards}
+        onBackToDashboard={handleBackToDashboard}
       />
     );
   }
@@ -339,6 +418,24 @@ const Dashboard = ({ userName, currentPlan }: DashboardProps) => {
                     <>
                       <Plus className="h-4 w-4 mr-2" />
                       Generate Quiz
+                    </>
+                  )}
+                </Button>
+                
+                <Button 
+                  onClick={handleGenerateFlashcards}
+                  disabled={!notes.trim() || isGeneratingFlashcards}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 mt-3"
+                >
+                  {isGeneratingFlashcards ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Flashcards...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Generate Flashcards
                     </>
                   )}
                 </Button>

@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      flashcards: {
+        Row: {
+          created_at: string
+          flashcard_data: Json
+          id: string
+          notes_content: string
+          title: string
+          total_cards: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          flashcard_data: Json
+          id?: string
+          notes_content: string
+          title: string
+          total_cards: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          flashcard_data?: Json
+          id?: string
+          notes_content?: string
+          title?: string
+          total_cards?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
