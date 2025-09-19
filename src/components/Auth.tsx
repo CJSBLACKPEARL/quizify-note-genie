@@ -60,6 +60,8 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.email || !formData.password) return;
+    
     setLoading(true);
 
     try {
@@ -75,15 +77,14 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
         description: "You have been signed in successfully.",
       });
       
-      onAuthSuccess();
+      // Auth state change will handle the redirect
     } catch (error: any) {
       toast({
         title: "Sign in failed",
         description: error.message,
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
+      setLoading(false); // Reset loading only on error
     }
   };
 
@@ -99,13 +100,15 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
       });
 
       if (error) throw error;
+      
+      // Don't set loading to false here as the redirect will happen
     } catch (error: any) {
       toast({
         title: "Google sign in failed",
         description: error.message,
         variant: "destructive"
       });
-      setLoading(false);
+      setLoading(false); // Only reset loading on error
     }
   };
 
