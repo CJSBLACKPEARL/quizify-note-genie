@@ -106,10 +106,14 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
       
       // Don't set loading to false here as the redirect will happen
     } catch (error: any) {
+      const message = typeof error?.message === 'string' && error.message.includes('provider is not enabled')
+        ? 'Google sign-in is disabled. Enable the Google provider in Supabase > Authentication > Providers.'
+        : (error?.message || 'Google sign-in failed. Please try again.');
+
       toast({
-        title: "Google sign in failed",
-        description: error.message,
-        variant: "destructive"
+        title: 'Google sign in failed',
+        description: message,
+        variant: 'destructive'
       });
       setLoading(false); // Only reset loading on error
     }
