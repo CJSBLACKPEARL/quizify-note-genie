@@ -1,87 +1,115 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
-
-import AuthModal from '@/components/AuthModal';
+import Auth from '@/components/Auth';
 import Dashboard from '@/components/Dashboard';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAuth, setShowAuth] = useState(false);
   const { toast } = useToast();
 
-  const handleAuth = (email: string, password: string, name?: string) => {
-    // Simulate authentication
-    const userData = {
-      name: name || email.split('@')[0],
-      email
-    };
-    
-    setUser(userData);
-    setIsAuthenticated(true);
-    
-    toast({
-      title: name ? "Account created!" : "Welcome back!",
-      description: name ? "Your account has been created successfully." : "You have been signed in.",
-    });
-  };
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        if (event === 'SIGNED_IN') {
+          setShowAuth(false);
+        }
+      }
+    );
 
-  const handleLogout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleGetStarted = () => {
-    if (isAuthenticated) {
-      // Scroll to dashboard or quiz generation
+    if (user) {
+      // User is already authenticated, scroll to dashboard
       return;
     }
-    setShowAuthModal(true);
+    setShowAuth(true);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (isAuthenticated && user) {
+  if (showAuth && !user) {
+    return <Auth onAuthSuccess={() => setShowAuth(false)} />;
+  }
+
+
+  if (user) {
     return (
       <>
         <Header 
-          isAuthenticated={isAuthenticated}
-          onAuthClick={() => setShowAuthModal(true)}
+          isAuthenticated={true}
+          onAuthClick={() => setShowAuth(true)}
           onLogout={handleLogout}
-          userName={user.name}
+          userName={user.user_metadata?.full_name || user.email?.split('@')[0]}
         />
-        <Dashboard userName={user.name} currentPlan="free" />
+        <Dashboard userName={user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'} currentPlan="free" />
       </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-background">
       <Header 
-        isAuthenticated={isAuthenticated}
-        onAuthClick={() => setShowAuthModal(true)}
+        isAuthenticated={false}
+        onAuthClick={() => setShowAuth(true)}
         onLogout={handleLogout}
-        userName={user?.name}
+        userName={undefined}
       />
       
       <Hero onGetStarted={handleGetStarted} />
       
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onAuth={handleAuth}
-      />
-      
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 py-8">
+      <footer className="bg-muted border-t py-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-400">
+          <p className="text-muted-foreground">
             © 2024 QuizifyGenie. Transform your notes into knowledge.
           </p>
         </div>

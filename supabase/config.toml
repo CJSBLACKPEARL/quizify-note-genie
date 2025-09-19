@@ -1,7 +1,7 @@
 project_id = "xwrqkmorzjtkbobtedxk"
 
 [functions.generate-quiz]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-flashcards]
-verify_jwt = false
+verify_jwt = true
