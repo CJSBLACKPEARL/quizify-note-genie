@@ -27,6 +27,8 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.email || !formData.password || !formData.name) return;
+    
     setLoading(true);
 
     try {
@@ -77,14 +79,15 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
         description: "You have been signed in successfully.",
       });
       
-      // Auth state change will handle the redirect
+      onAuthSuccess();
     } catch (error: any) {
       toast({
         title: "Sign in failed",
         description: error.message,
         variant: "destructive"
       });
-      setLoading(false); // Reset loading only on error
+    } finally {
+      setLoading(false);
     }
   };
 
