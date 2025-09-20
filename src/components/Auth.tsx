@@ -14,6 +14,7 @@ interface AuthProps {
 const Auth = ({ onAuthSuccess }: AuthProps) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -81,14 +82,41 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
       
       onAuthSuccess();
     } catch (error: any) {
-      const message = error.code === 'email_not_confirmed' 
+      const isUnconfirmed = error.code === 'email_not_confirmed';
+      const message = isUnconfirmed 
         ? 'Please check your email and click the confirmation link before signing in.'
         : error.message;
+
+      setEmailNotConfirmed(isUnconfirmed);
       
       toast({
         title: "Sign in failed",
         description: message,
         variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!formData.email) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: formData.email,
+      });
+      if (error) throw error;
+      toast({
+        title: 'Email sent',
+        description: 'Confirmation email resent. Please check your inbox.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Resend failed',
+        description: error.message || 'Unable to resend confirmation email.',
+        variant: 'destructive'
       });
     } finally {
       setLoading(false);
@@ -185,6 +213,19 @@ const Auth = ({ onAuthSuccess }: AuthProps) => {
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
                 </Button>
+
+                {emailNotConfirmed && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Didn't get the email?{' '}
+                    <button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      className="underline underline-offset-2"
+                    >
+                      Resend confirmation
+                    </button>
+                  </p>
+                )}
               </form>
             </TabsContent>
             
